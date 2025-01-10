@@ -69,7 +69,7 @@ def split(a, n):
 
 if __name__ == '__main__':
     if platform == "linux" or platform == "linux2":
-        matplotlib.use("gtk4agg")
+        matplotlib.use("template")
     # Load data
     file_path = 'data/TNG50_1_Dark_Centrals.hdf5'  # Update this path if necessary
     with h5py.File(file_path, 'r') as f:
