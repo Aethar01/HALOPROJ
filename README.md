@@ -13,7 +13,7 @@ function (2PCF) of certain halo mass bins
 values are optimal
 
 ## Plots 
-![Halo Mass Histogram](./plots/halo_masses.png.png)
-![Galaxy Mass Histogram](./plots/galaxy_masses.png.png)
+![Halo Mass Histogram](./plots/halo_masses.png)
+![Galaxy Mass Histogram](./plots/galaxy_masses.png)
 
 
