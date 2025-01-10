@@ -11,7 +11,6 @@ import numpy as np
 import h5py
 from scipy.integrate import trapezoid, cumulative_trapezoid
 from scipy.interpolate import interp1d
-from scipy.special import erf, erfc
 from colossus.cosmology import cosmology
 from colossus.lss import mass_function
 from colossus.lss import peaks

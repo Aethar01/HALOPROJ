@@ -22,50 +22,10 @@ plt.rcParams.update({'font.size': 18})
 cosmo = cosmology.setCosmology('planck15')
 
 
-def abundance_matching2(xvals, xarr, xdist, yarr, ydist, scatter=0.2):
-    """Abundance Matching using CDFs."""
-    cum_xdist = np.cumsum(xdist[::-1])[::-1]
-    cum_ydist = np.cumsum(ydist[::-1])[::-1]
-
-    y_matched = np.interp(
-        np.interp(xvals, xarr, cum_xdist), cum_ydist, yarr[::-1])
-    scatter_array = np.random.normal(0, scatter, len(xvals))
-    return y_matched + scatter_array
-
-
-def plot_histograms(halo_masses, galaxy_masses):
-    """Plot histograms of halo and galaxy masses."""
-    plt.figure(figsize=(10, 6))
-    plt.hist(halo_masses, bins=50, alpha=0.7, label='Halo Mass')
-    plt.xlabel('log(M_halo) [M_sun]')
-    plt.ylabel('Count')
-    plt.legend()
-    plt.savefig('plots/halo_masses.png')
-
-    plt.figure(figsize=(10, 6))
-    plt.hist(galaxy_masses, bins=50, alpha=0.7,
-             label='Galaxy Mass')
-    plt.xlabel('log(M_star) [M_sun]')
-    plt.ylabel('Count')
-    plt.legend()
-    plt.savefig('plots/galaxy_masses.png')
-
-
-def compute_2pcf(logRp, logR, correlation_function, bias_values, Dz):
-    """Compute the 2-point correlation function (2PCF)."""
-    wp = []
-    for Rp in 10**logRp:
-        integral = np.trapz(correlation_function /
-                            np.sqrt(Rp**2 + 10**(2 * logR)), 10**logR)
-        wp.append(2 * integral)
-    wp = np.array(wp)
-    wp_projected = Dz**2 * np.mean(bias_values)**2 * wp
-    return wp_projected
-
-
-def split(a, n):
-    k, m = divmod(len(a), n)
-    return (a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n))
+def nearest(vector, value, DEBUG=True):
+    ''' Returns index of nearest value in vector to value '''
+    res = (np.abs(vector - value)).argmin()
+    return res
 
 
 def get_HMF(z, Mh):
@@ -147,6 +107,45 @@ def get_SMF(zvals, Mvals, work='Weaver+2023'):
             SMF_Cat[:, im]), bounds_error=False, fill_value='extrapolate')(zvals)
 
     return SMF
+
+
+def abundance_matching(xvals, xdist, xarr, ydist, yarr, scatter=0.2, fillVal=-66):
+    ''' #### abundance_matching ####
+    FUNCTION :
+        Abundance Matching, Applying equation 37 of Aversa 2015
+    INPUT :
+        xvals      - The values of the x quantity of the catalogue (e.g. Mhalo / HAR / sHAR) - 1D array (nhalo,)
+        xarr       - Array of value corresponding to the values of the x distribution - 1D array (nx,)
+        xdist      - x distribution function - 1D array (nx,)
+        yarr       - Array of value corresponding to the values of the y distribution - 1D array (ny,)
+        ydist      - y distribution function - 1D array (ny,)
+        scatter    - scatter in the relation (0.15 for SMHM, 0.3 for HAR-SFR and sHAR-sSFR) - float
+        delay      - Bool
+        fill_value - fill value for the interpolation
+    OUTPUT :
+        yvals - The values of the y quantity corresponding to the xvals of the catalogue (e.g. Mstar / SFR / sSFR) - 1D array (nhalo,)
+        y_AM  - The values of the abundance matching corresponding to the input xarr - 1D array (nx,)
+    '''
+    def get_cumDist(dist, vals, scatter=None):
+        if scatter is None:
+            cumDist = trapezoid(dist, vals) - \
+                cumulative_trapezoid(dist, vals, initial=0)
+        else:
+            cumDist = np.array([trapezoid(
+                dist / 2 * erfc((vals[i] - vals) / (np.sqrt(2) * scatter)), vals) for i in range(vals.size)])
+        return cumDist
+
+    Cumulative_xdist = np.log10(get_cumDist(xdist, xarr, scatter=scatter))
+    Cumulative_ydist = np.log10(get_cumDist(ydist, yarr, scatter=None))
+    Cumulative_xdist[np.invert(np.isfinite(Cumulative_xdist))] = -66.
+    Cumulative_ydist[np.invert(np.isfinite(Cumulative_ydist))] = -66.
+
+    y_AM = interp1d(np.flip(Cumulative_ydist), np.flip(yarr),
+                    bounds_error=False, fill_value=fillVal)(Cumulative_xdist)
+    yvals = interp1d(xarr, y_AM, fill_value='extrapolate')(xvals)
+    return yvals, y_AM
+
+    plt.savefig('plots/old/SMF.png')
 
 
 def D_z_white(omegam, z):
@@ -261,71 +260,136 @@ def wpr(logRp, logR, xir):
 if __name__ == '__main__':
     if platform == "linux" or platform == "linux2":
         matplotlib.use("gtk4agg")
-    # Load data
-    file_path = 'data/TNG50_1_Dark_Centrals.hdf5'  # Update this path if necessary
+    # Redshift of observation
+    z = np.array([0])
+    # Get the HMF
+    MhaloArray = np.linspace(11, 16, 251)
+    HMF = get_HMF(z, MhaloArray)[0]  # The returned HMF is logged
+    # Get the SMF
+    MstarArray = np.linspace(8, 13, 276)
+    SMF = get_SMF(z, MstarArray)[0]  # The returned SMF is logged
+
+    file_path = 'data/TNG50_1_Dark_Centrals.hdf5'
     with h5py.File(file_path, 'r') as f:
         MhaloCatalogue = np.array(f['Centrals']['M'])
-        galaxy_positions = np.array(
-            f['Centrals']['pos']) / 1e3  # Convert to cMpc/h
+        galaxy_positions = np.array(f['Centrals']['pos']) / 1e3  # cMpc/h
 
-    # Define mass arrays
-    MhaloArray = np.linspace(11, 16, 251)
-    MstarArray = np.linspace(8, 13, 276)
+    # Filter both MhaloCatalogue and galaxy_positions to ensure matching dimensions
+    valid_indices = MhaloCatalogue >= 9
+    MhaloCatalogue = MhaloCatalogue[valid_indices]
+    galaxy_positions = galaxy_positions[valid_indices]
 
-    # Compute HMF and SMF
-    HMF = get_HMF(np.array([0]), MhaloArray)[0]  # Redshift z = 0
-    SMF = get_SMF(np.array([0]), MstarArray)[0]
+    nhalo = MhaloCatalogue.size
+    vol = 50**3  # cMpc^3
 
-    # Perform abundance matching
-    MstarCatalogue = abundance_matching2(
-        MhaloCatalogue, MhaloArray, HMF, MstarArray, SMF, scatter=0.2)
+    # Abundance match between the HMF and SMF to get the SMHM relation and the Stellar mass Catalogue
+    MstarCatalogue, Mstar_AbundanceMatched = abundance_matching(
+        MhaloCatalogue, 10**HMF, MhaloArray, 10**SMF, MstarArray, scatter=0.15, fillVal='extrapolate')
+    # Add the scatter in the relation
+    MstarCatalogue += np.random.normal(0, 0.15, nhalo)
 
-    # Plot histograms
-    plot_histograms(MhaloCatalogue, MstarCatalogue)
+    # Plot a simple histogram of halo masses
+    plt.figure(figsize=(10, 6))
+    plt.hist(MhaloCatalogue, bins=50, color='purple', alpha=0.7, range=(9, 14))
+    plt.xlabel(r'$\log_{10}(M_{\mathrm{Halo}}/\mathrm{M}_{\odot})$')
+    plt.ylabel('Number of Halos')
+    plt.title('Histogram of Halo Masses')
+    plt.grid(True)
+    plt.savefig('plots/old/HaloMasses.png')
 
-    # Compute and plot 2PCF for selected mass bins
-    logR = np.linspace(-2, 2, 100)
+    # Plot a histogram of matched galaxy masses
+    plt.figure(figsize=(10, 6))
+    plt.hist(MstarCatalogue, bins=50, color='orange', alpha=0.7)
+    plt.xlabel(r'$\log_{10}(M_{\mathrm{Star}}/\mathrm{M}_{\odot})$')
+    plt.ylabel('Number of Galaxies')
+    plt.title('Histogram of Matched Galaxy Masses')
+    plt.grid(True)
+
+    # generate the halo mass function of central haloes (no subhaloes)
+    # msun/h
+    mina = 11.
+    maxa = 15.1
+    binsize = 0.1
+    z = 0.
+    Vol = 500.**3.  # Mpc/h
+    M = 10**np.arange(mina, maxa, binsize)
+    mfunc = mass_function.massFunction(
+        M, z, mdef='200m', model='tinker08', q_out='dndlnM')*np.log(10.)
+    # plt.plot(np.log10(M), np.log10(mfunc))
+
+    # convert to Msun units
+    # cosmo = cosmology.getCurrent()
+    # compute the cumulative halo mass function and extract the haloes
+    a = mfunc[::-1]
+    a = np.cumsum(a*binsize)
+    a = a[::-1]
+    vecint = np.arange(int(np.max(a*Vol)))
+    b = a[::-1]
+    cumh = np.log10(M[::-1])
+    Mh = np.interp(vecint, b*Vol, cumh)  # Msun/h
+    # plt.plot(np.log10(M), np.log10(a*Vol))
+
+    # convert to Msun units
+    # cosmo = cosmology.getCurrent()
+    h = 0.7
+    Mhalo = Mh-np.log10(h)
+
+    import ScalingRelations as Sca
+
+    # assign galaxies to haloes
+    Mgal = Sca.Grylls19(z, Mhalo, 0.1)  # Mhalo must be in Msun
+
+    omegam = 0.3
+    # bias=biastreu(omegam, Mh, z, h, Shen=True)# Tinkbias=True)
+
+    # mask=(Mgal > 10.1) & (Mgal <10.3)
+    mask = (Mgal > 11.1) & (Mgal < 11.3)
+    # bb=bias[mask]
+
+    # data_file = "D:\progPython\wpLINz0.0.txt"
+    # rp, wp= np.loadtxt(data_file,\
+    #                             unpack=True, \
+    #                             delimiter=None,\
+    #                             dtype=float)
+
+    logR = np.linspace(-2.0, 2.0, 100)
     R = 10.**logR
-    correlation_function = cosmo.correlationFunction(R, z=0)
 
-    bins_for_MhaloCatalogue = 6
-    # Define stellar mass bins
-    MstarCatalogue.sort()
-    split_MstarCatalogue = list(split(MstarCatalogue, bins_for_MhaloCatalogue))
-    bins = []
-    for i in range(len(split_MstarCatalogue)):
-        bins.append((split_MstarCatalogue[i][0], split_MstarCatalogue[i][-1]))
+    cosmo = cosmology.getCurrent()
+    params = {'flat': True, 'H0': 70., 'Om0': 0.30,
+              'Ob0': 0.044, 'sigma8': 0.80, 'ns': 1.00}
+    cosmo1 = cosmology.setCosmology('myCosmo', **params)
 
-    # bins = [(10.5, 11.0), (11.0, 11.5), (11.5, 12.0)]
-    Dz = cosmo.growthFactor(0)
+    corr = cosmo1.correlationFunction(R, z=z)
 
-    for i, (mass_min_unrounded, mass_max_unrounded) in enumerate(bins):
-        print(mass_min_unrounded, mass_max_unrounded)
-        mass_min = round(mass_min_unrounded, 2)
-        mass_max = round(mass_max_unrounded, 2)
-        mask = (MstarCatalogue >= mass_min) & (MstarCatalogue <= mass_max)
-        logRp = np.linspace(0, 1.4, 30)
+    logRp = np.linspace(0., 1.4, 30)
+    wpc = wpr(logRp, logR, corr)
+    # plt.plot(np.log10(rp),np.log10(wpc),marker='d')
+    # plt.show()
 
-        # Compute bias
-        try:
-            M = 10.**MhaloCatalogue[mask]
-            M = 10.**split_MstarCatalogue[i]
-            nu = peaks.peakHeight(M, 0)
-            halo_bias = bias.haloBiasFromNu(nu, model='sheth01')
+    Dz = D_z_white(omegam, z)
 
-            # Compute 2PCF
-            wp_projected = compute_2pcf(
-                logRp, logR, correlation_function, halo_bias, Dz)
+    M = 10.**Mh
+    nu = peaks.peakHeight(M, z)
+    biass = bias.haloBiasFromNu(nu, model='sheth01')
+    biast = bias.haloBias(M, model='tinker10', z=z, mdef='vir')
 
-            # Plot results
-            plt.figure()
-            plt.plot(logRp, np.log10(wp_projected),
-                     label=f"{mass_min}-{mass_max}")
-            plt.xlabel("log(r_p) [Mpc/h]")
-            plt.ylabel("log(w_p(r_p)) [Mpc/h]")
-            plt.title("2PCF for Galaxy Mass Bins")
-            plt.legend()
-            plt.savefig(f"plots/2PCF_{mass_min}-{mass_max}.png")
-        except Exception as e:
-            print(f"Error computing 2PCF for mass bin {
-                  mass_min}-{mass_max}: {e}")
+    bb = biass[mask]
+
+    wpr = Dz**2*np.mean(bb)**2*wpc
+
+    plt.figure()
+    plt.xlabel(r"log r [Mpc/h]")
+    plt.ylabel(r"log wp(r) [Mpc/h]")
+    plt.title("Projected Correlation Function vs Seperation ")
+    plt.plot(logRp, np.log10(wpr))
+
+    # compare with data:
+    # data_file = "D:\progPython\DataClusteringSDSScentrals10.19.txt"
+    data_file = "data/DataClusteringSDSScentrals11.12.txt"
+    rpd, wpd = np.loadtxt(data_file,
+                          unpack=True,
+                          delimiter=None,
+                          dtype=float)
+    plt.plot(np.log10(rpd), np.log10(wpd/rpd), marker="d")
+    plt.savefig('plots/old/ProjectedCorrelationFunction.png')
