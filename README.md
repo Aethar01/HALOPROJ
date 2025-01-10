@@ -11,3 +11,9 @@ function (2PCF) of certain halo mass bins
 6. Try with different HMF’s?
 7. Change scatter value used in some of the calculations using different models, find which
 values are optimal
+
+## Plots 
+![Halo Mass Histogram](./plots/halo_masses.png.png)
+![Galaxy Mass Histogram](./plots/galaxy_masses.png.png)
+
+

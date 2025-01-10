@@ -4,18 +4,16 @@ Created on Sat Jan  4 19:55:07 2025
 
 @author: lewis
 """
+from pathlib import Path
 from sys import platform
 import matplotlib
 from matplotlib import pyplot as plt
 import numpy as np
 import h5py
-from scipy.interpolate import interp1d
 from colossus.cosmology import cosmology
-from colossus.lss import mass_function
 from colossus.lss import peaks
 from colossus.lss import bias
-from scipy.integrate import simpson as simps
-from cc2 import get_HMF, get_SMF
+from cc2 import get_HMF, get_SMF, wpr, D_z_white
 # plt.rcParams.update({'font.size': 18})
 
 # Planck 15 cosmology to match TNG50-1-Dark
@@ -53,12 +51,13 @@ def plot_histograms(halo_masses, galaxy_masses):
 
 def compute_2pcf(logRp, logR, correlation_function, bias_values, Dz):
     """Compute the 2-point correlation function (2PCF)."""
-    wp = []
-    for Rp in 10**logRp:
-        integral = np.trapz(correlation_function /
-                            np.sqrt(Rp**2 + 10**(2 * logR)), 10**logR)
-        wp.append(2 * integral)
-    wp = np.array(wp)
+    cosmo = cosmology.getCurrent()
+    params = {'flat': True, 'H0': 70., 'Om0': 0.30,
+              'Ob0': 0.044, 'sigma8': 0.80, 'ns': 1.00}
+    cosmo1 = cosmology.setCosmology('myCosmo', **params)
+
+    corr = cosmo1.correlationFunction(R, 0.)
+    wp = wpr(logRp, logR, corr)
     wp_projected = Dz**2 * np.mean(bias_values)**2 * wp
     return wp_projected
 
@@ -112,7 +111,11 @@ if __name__ == '__main__':
         bins.append((split_MstarCatalogue[i][0], split_MstarCatalogue[i][-1]))
 
     # bins = [(10.5, 11.0), (11.0, 11.5), (11.5, 12.0)]
-    Dz = cosmo.growthFactor(0)
+    # Dz = cosmo.growthFactor(0)
+    Dz = D_z_white(0.3, 0.)
+
+    for p in Path("plots").glob("2PCF_*.png"):
+        p.unlink()
 
     for i, (mass_min_unrounded, mass_max_unrounded) in enumerate(bins):
         mass_min = round(mass_min_unrounded, 2)
@@ -123,7 +126,7 @@ if __name__ == '__main__':
         # Compute bias
         try:
             M = 10.**MhaloCatalogue[mask]
-            nu = peaks.peakHeight(M, 0)
+            nu = peaks.peakHeight(M, 0.)
             halo_bias = bias.haloBiasFromNu(nu, model='sheth01')
 
             # Compute 2PCF
@@ -137,8 +140,29 @@ if __name__ == '__main__':
             plt.xlabel("log(r_p) [Mpc/h]")
             plt.ylabel("log(w_p(r_p)) [Mpc/h]")
             plt.title("2PCF for Galaxy Mass Bins")
+
+            # Load SDSS data
+            cluster_data = "data/DataClusteringSDSScentrals11.12.txt"
+            rpd, wpd = np.loadtxt(cluster_data,
+                                  unpack=True,
+                                  delimiter=None,
+                                  dtype=float)
+            plt.plot(np.log10(rpd), np.log10(wpd/rpd), marker="d")
             plt.legend()
             plt.savefig(f"plots/2PCF_{mass_min}-{mass_max}.png")
         except Exception as e:
             print(f"Error computing 2PCF for mass bin {
                   mass_min}-{mass_max}: {e}")
+
+    # print all bins
+    logRp = np.linspace(0, 1.4, 30)
+    plt.figure()
+    for i, (mass_min_unrounded, mass_max_unrounded) in enumerate(bins):
+        mass_min = round(mass_min_unrounded, 2)
+        mass_max = round(mass_max_unrounded, 2)
+        plt.plot(logRp, np.log10(wp_projected), label=f"{mass_min}-{mass_max}")
+    plt.xlabel("log(r_p) [Mpc/h]")
+    plt.ylabel("log(w_p(r_p)) [Mpc/h]")
+    plt.title("2PCF for Galaxy Mass Bins")
+    plt.legend()
+    plt.savefig("plots/2PCF_all_bins.png")
