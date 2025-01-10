@@ -270,7 +270,7 @@ if __name__ == '__main__':
     MstarArray = np.linspace(8, 13, 276)
     SMF = get_SMF(z, MstarArray)[0]  # The returned SMF is logged
 
-    file_path = 'TNG50_1_Dark_Centrals.hdf5'
+    file_path = 'data/TNG50_1_Dark_Centrals.hdf5'
     with h5py.File(file_path, 'r') as f:
         MhaloCatalogue = np.array(f['Centrals']['M'])
         galaxy_positions = np.array(f['Centrals']['pos']) / 1e3  # cMpc/h
@@ -387,7 +387,7 @@ if __name__ == '__main__':
 
     # compare with data:
     # data_file = "D:\progPython\DataClusteringSDSScentrals10.19.txt"
-    data_file = "DataClusteringSDSScentrals11.12.txt"
+    data_file = "data/DataClusteringSDSScentrals11.12.txt"
     rpd, wpd = np.loadtxt(data_file,
                           unpack=True,
                           delimiter=None,
