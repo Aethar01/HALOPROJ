@@ -14,6 +14,7 @@ from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import bias
 from cc2 import get_HMF, get_SMF, wpr, D_z_white, abundance_matching
+from scipy.interpolate import interp1d
 # plt.rcParams.update({'font.size': 18})
 
 # Planck 15 cosmology to match TNG50-1-Dark
@@ -28,7 +29,9 @@ def abundance_matching2(xvals, xarr, xdist, yarr, ydist, scatter=0.2):
     y_matched = np.interp(
         np.interp(xvals, xarr, cum_xdist), cum_ydist, yarr[::-1])
     scatter_array = np.random.normal(0, scatter, len(xvals))
-    return y_matched + scatter_array
+    abm = interp1d(np.flip(cum_ydist), np.flip(yarr),
+                   bounds_error=False, fill_value='extrapolate')(cum_xdist)
+    return abm
 
 
 def plot_histograms(halo_masses, galaxy_masses):
@@ -78,6 +81,9 @@ if __name__ == '__main__':
         MhaloCatalogue = np.array(f['Centrals']['M'])
         galaxy_positions = np.array(
             f['Centrals']['pos']) / 1e3  # Convert to cMpc/h
+    # Clear plots directory
+    for p in Path("plots").glob("2PCF_*.png"):
+        p.unlink()
 
     # Filter both MhaloCatalogue and galaxy_positions to ensure matching dimensions
     valid_indices = MhaloCatalogue >= 9
@@ -93,9 +99,8 @@ if __name__ == '__main__':
     SMF = get_SMF(np.array([0]), MstarArray)[0]
 
     # Perform abundance matching
-    # MstarCatalogue = abundance_matching2(
-    #     MhaloCatalogue, MhaloArray, 10**HMF, MstarArray, 10**SMF, scatter=0.2)
-    MstarCatalogue, Mstar_AbundanceMatched = abundance_matching(MhaloCatalogue, 10**HMF, MhaloArray, 10**SMF, MstarArray, scatter=0.15, fillVal='extrapolate')
+    MstarCatalogue = abundance_matching2(
+        MhaloCatalogue, MhaloArray, 10**HMF, MstarArray, 10**SMF, scatter=0.2)
 
     # Plot histograms
     plot_histograms(MhaloCatalogue, MstarCatalogue)
@@ -113,22 +118,19 @@ if __name__ == '__main__':
     # for i in range(len(split_MstarCatalogue)):
     #     bins.append((split_MstarCatalogue[i][0], split_MstarCatalogue[i][-1]))
 
-    bins = [(10.5, 11.0), (11.0, 11.5), (11.5, 12.0)]
+    bins = [(10.5, 11.0), (11.0, 11.5), (11.5, 12.0), (10.5, 12.0)]
     # Dz = cosmo.growthFactor(0)
     Dz = D_z_white(0.3, 0.)
-
-    for p in Path("plots").glob("2PCF_*.png"):
-        p.unlink()
 
     for i, (mass_min_unrounded, mass_max_unrounded) in enumerate(bins):
         mass_min = round(mass_min_unrounded, 2)
         mass_max = round(mass_max_unrounded, 2)
-        mask = (MstarCatalogue >= mass_min) & (MstarCatalogue <= mass_max)
+        mask = (MstarCatalogue > mass_min) & (MstarCatalogue < mass_max)
         logRp = np.linspace(0, 1.4, 30)
 
         # Compute bias
         try:
-            M = 10.**MhaloCatalogue[mask]
+            M = 10.**MstarCatalogue[mask]
             nu = peaks.peakHeight(M, 0.)
             halo_bias = bias.haloBiasFromNu(nu, model='sheth01')
 
@@ -141,7 +143,7 @@ if __name__ == '__main__':
             plt.figure(figsize=(10, 6))
             plt.xlabel("log(r_p) [Mpc/h]")
             plt.ylabel("log(w_p(r_p)) [Mpc/h]")
-            plt.title("2PCF for Galaxy Mass Bins")
+            plt.title(f"2PCF for Galaxy Mass Bins ({mass_min}-{mass_max})")
 
             # Load SDSS data
             cluster_data = "data/DataClusteringSDSScentrals11.12.txt"
@@ -156,19 +158,4 @@ if __name__ == '__main__':
             plt.legend()
             plt.savefig(f"plots/2PCF_{mass_min}-{mass_max}.png")
         except Exception as e:
-            print(f"Error computing 2PCF for mass bin {
-                  mass_min}-{mass_max}: {e}")
-
-    # print all bins
-    logRp = np.linspace(0, 1.4, 30)
-    plt.clf()
-    plt.figure(figsize=(10, 6))
-    plt.xlabel("log(r_p) [Mpc/h]")
-    plt.ylabel("log(w_p(r_p)) [Mpc/h]")
-    plt.title("2PCF for Galaxy Mass Bins")
-    for i, (mass_min_unrounded, mass_max_unrounded) in enumerate(bins):
-        mass_min = round(mass_min_unrounded, 2)
-        mass_max = round(mass_max_unrounded, 2)
-        plt.plot(logRp, np.log10(wp_projected), label=f"{mass_min}-{mass_max}")
-    plt.legend()
-    plt.savefig("plots/2PCF_all_bins.png")
+            print(f"{e}")

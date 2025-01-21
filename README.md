@@ -18,4 +18,4 @@ values are optimal
 ![2PCF for Galaxy Mass Bin 10.5-11.0](./plots/2PCF_10.5-11.0.png)
 ![2PCF for Galaxy Mass Bin 11.0-11.5](./plots/2PCF_11.0-11.5.png)
 ![2PCF for Galaxy Mass Bin 11.5-12.0](./plots/2PCF_11.5-12.0.png)
-![2PCF for Galaxy Mass all bins](./plots/2PCF_all_bins.png)
+![2PCF for Galaxy Mass all bins](./plots/2PCF_10.5-12.0.png)
