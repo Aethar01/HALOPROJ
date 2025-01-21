@@ -16,6 +16,7 @@ from colossus.lss import mass_function
 from colossus.lss import peaks
 from colossus.lss import bias
 from scipy.integrate import simpson as simps
+from scipy.special import erfc
 plt.rcParams.update({'font.size': 18})
 
 # Planck 15 cosmology to match TNG50-1-Dark
