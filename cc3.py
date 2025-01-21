@@ -114,18 +114,19 @@ if __name__ == '__main__':
     # Define stellar mass bins
     MstarCatalogue.sort()
     split_MstarCatalogue = list(split(MstarCatalogue, bins_for_MhaloCatalogue))
-    # bins = []
-    # for i in range(len(split_MstarCatalogue)):
-    #     bins.append((split_MstarCatalogue[i][0], split_MstarCatalogue[i][-1]))
+    bins = []
+    for i in range(len(split_MstarCatalogue)):
+        bins.append((split_MstarCatalogue[i][0], split_MstarCatalogue[i][-1]))
+    bins += [(split_MstarCatalogue[0][0], split_MstarCatalogue[-1][-1])]
 
-    bins = [(10.5, 11.0), (11.0, 11.5), (11.5, 12.0), (10.5, 12.0)]
+    # bins = [(10.5, 11.0), (11.0, 11.5), (11.5, 12.0), (10.5, 12.0)]
     # Dz = cosmo.growthFactor(0)
     Dz = D_z_white(0.3, 0.)
 
     for i, (mass_min_unrounded, mass_max_unrounded) in enumerate(bins):
         mass_min = round(mass_min_unrounded, 2)
         mass_max = round(mass_max_unrounded, 2)
-        mask = (MstarCatalogue > mass_min) & (MstarCatalogue < mass_max)
+        mask = (MstarCatalogue >= mass_min) & (MstarCatalogue <= mass_max)
         logRp = np.linspace(0, 1.4, 30)
 
         # Compute bias

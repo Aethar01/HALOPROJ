@@ -15,7 +15,9 @@ values are optimal
 ## Plots 
 ![Halo Mass Histogram](./plots/halo_masses.png)
 ![Galaxy Mass Histogram](./plots/galaxy_masses.png)
-![2PCF for Galaxy Mass Bin 10.5-11.0](./plots/2PCF_10.5-11.0.png)
-![2PCF for Galaxy Mass Bin 11.0-11.5](./plots/2PCF_11.0-11.5.png)
-![2PCF for Galaxy Mass Bin 11.5-12.0](./plots/2PCF_11.5-12.0.png)
-![2PCF for Galaxy Mass all bins](./plots/2PCF_10.5-12.0.png)
+![2PCF for Galaxy Mass Bin 8.71-10.06](./plots/2PCF_8.71-10.06.png)
+![2PCF for Galaxy Mass Bin 10.09-10.87](./plots/2PCF_10.09-10.87.png)
+![2PCF for Galaxy Mass Bin 10.89-11.27](./plots/2PCF_10.89-11.27.png)
+![2PCF for Galaxy Mass Bin 11.55-11.81](./plots/2PCF_11.55-11.81.png)
+![2PCF for Galaxy Mass Bin 11.82-12.16](./plots/2PCF_11.82-12.16.png)
+![2PCF for Galaxy Mass Bin 8.71-12.16](./plots/2PCF_8.71-12.16.png)
